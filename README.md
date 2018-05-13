@@ -4,8 +4,11 @@ Tools for writing Haskell bindings for Objective-C APIs.
 
 ## Building
 
-You'll need to tell cabal/stack where to find your frameworks with something
-like this:
+Stack seems to not support the `--extra-framework-dirs` option, so you'll likely
+need to build with cabal.
+
+You'll need to tell cabal where to find your frameworks with something like
+this:
 
 ```bash
 $ cabal configure --extra-framework-dirs=/System/Library/Frameworks

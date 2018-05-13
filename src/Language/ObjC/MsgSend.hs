@@ -77,12 +77,19 @@ funTyNames (AppT (AppT ArrowT x) y) = (:) <$> (newName "a") <*> funTyNames y
 funTyNames _                        = pure []
 
 -- | Haskell function type to @objc_msgSend@ wrapper. Maps types like this:
+--
 --   > NSObject b => a -> b -> IO c
+--
 --   to wrappers like this:
+--
 --   > \w a b -> withForeignPtr b (\b' -> w a b')
+--
 --   And types like this:
+--
 --   > (NSObject a, NSObject c) => a -> b -> IO c
+--
 --   to wrapper like this:
+--
 --   > \w a b -> withForeignPtr a (\a' -> w a' b >>= (coerce . newRetainedId))
 wrapperExp :: Type -> Q Exp
 wrapperExp ty = do
