@@ -201,7 +201,7 @@ instWrapperExp ty = do
                           (\ $(varP pn) -> $(fpWrap gs fs (pn:us) ns y)) |]
               else fpWrap gs fs (n:us) ns y
           fpWrap (gmn,inn) (wn,ipn,mn) us [] y = do
-              isNSO <- isNSObject y
+              isNSO <- isReturnedNSObject y
               if isNSO
               then [| do $(varP mn) <- $(varE gmn)
                          withForeignPtr $(varE inn)
