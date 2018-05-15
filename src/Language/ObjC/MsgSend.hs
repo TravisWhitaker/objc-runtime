@@ -77,6 +77,18 @@ funTyToInstMsgTy (AppT (AppT ArrowT inst) r) = do
     when (not isNSO) $
         fail "instance messages must be a function of the instance."
     [t| $(pure inst) -> Id -> $(pure r) |]
+funTyToInstMsgTy _ =
+    fail "instnace messages must be a function of the instance."
+
+-- | Drops the instance pointer from an instance message type.
+dropInstMsgTy :: Type -> Q Type
+dropInstMsgTy (AppT (AppT ArrowT inst) r) = do
+    isNSO <- isNSObject inst
+    when (not isNSO) $
+        fail "instance messages must be a function of the instance."
+    pure r
+dropInstMsgTy _ =
+    fail "instance messages must be a function of the instance."
 
 -- | List of fresh names, one for each argument in a function type. Useful for
 --   generating lambdas.
@@ -99,39 +111,14 @@ funTyNames _                        = pure []
 --   to wrapper like this:
 --
 --   > \w a b -> withForeignPtr a (\a' -> w a' b >>= (coerce . newRetainedId))
-wrapperExp :: Type -> Q Exp
-wrapperExp ty = do
-    wn   <- newName "w"
-    ftns <- funTyNames ty
-    let ps = fmap VarP (wn:ftns)
-    rhs <- fpWrap (wn:|[]) ftns ty
-    pure $ LamE ps rhs
-    where fpWrap :: NonEmpty Name -> [Name] -> Type -> Q Exp
-          fpWrap us [] (AppT (AppT ArrowT x) y) =
-              fail "wrapperEnv: Ran out of names!"
-          fpWrap us (n:ns) (AppT (AppT ArrowT x) y) = do
-           isNSO <- isNSObject x
-           if isNSO
-           then do
-               pn  <- newName "p"
-               [e| withForeignPtr $(varE n)
-                                  (\ $(varP pn) -> $(fpWrap (pn <| us) ns y)) |]
-           else do
-               fpWrap (n <| us) ns y
-          fpWrap us [] y = do
-              isNSO <- isReturnedNSObject y
-              if isNSO
-              then [| $(pure ((callWrap us))) >>= newRetainedId |]
-              else pure (callWrap us)
-          fpWrap _ (_:_) _ = fail "wrapperEnv: Leftover names!"
-          callWrap (w :| []) = VarE w
-          callWrap (a :| (a':as)) = AppE (callWrap (a' :| as)) (VarE a)
-
+--
+--   This wrapper is for classes; the passed in type should not include class
+--   and method pointers.
 classWrapperExp :: Type -> Q Exp
 classWrapperExp ty = do
     wn   <- newName "objc_msgSend_wrapper"
     gcn  <- newName "objc_getClass_wrapper"
-    gmn  <- newName "objc_getUid_wrapper"
+    gmn  <- newName "sel_getUid_wrapper"
     cn   <- newName "cls"
     mn   <- newName "mth"
     ftns <- funTyNames ty
@@ -147,18 +134,13 @@ classWrapperExp ty = do
           fpWrap gs fs us [] (AppT (AppT ArrowT x) y) =
               fail "classWrapperEnv: Ran out of names!"
           fpWrap gs fs us (n:ns) (AppT (AppT ArrowT x) y) = do
-           isNSO <- isNSObject x
-           if isNSO
-           then do
-               pn  <- newName "ptr"
-               [e| withForeignPtr $(varE n)
-                                  (\ $(varP pn) -> $(fpWrap gs
-                                                            fs
-                                                            (pn:us)
-                                                            ns
-                                                            y)) |]
-           else do
-               fpWrap gs fs (n:us) ns y
+             isNSO <- isNSObject x
+             if isNSO
+             then do
+                 pn  <- newName "ptr"
+                 [e| withForeignPtr $(varE n)
+                         (\ $(varP pn) -> $(fpWrap gs fs (pn:us) ns y)) |]
+             else fpWrap gs fs (n:us) ns y
           fpWrap (gcn,gmn) (wn,cn,mn) us [] y = do
               isNSO <- isReturnedNSObject y
               if isNSO
@@ -169,10 +151,71 @@ classWrapperExp ty = do
               else [| do $(varP cn) <- $(varE gcn)
                          $(varP mn) <- $(varE gmn)
                          $(pure (callWrap (wn,cn,mn) us)) |]
-          fpWrap _ _ (_:_) _ _ = fail "wrapperEnv: Leftover names!"
-          callWrap (wn,cn,mn) [] = AppE (AppE (VarE wn) (VarE cn))
-                                        (VarE mn)
+          fpWrap _ _ (_:_) _ _ = fail "classWrapperEnv: Leftover names!"
+          callWrap (wn,cn,mn) [] = AppE (AppE (VarE wn) (VarE cn)) (VarE mn)
           callWrap fn (a:as)     = AppE (callWrap fn as) (VarE a)
+
+-- | Haskell function type to @objc_msgSend@ wrapper. Maps types like this:
+--
+--   > NSObject b => a -> b -> IO c
+--
+--   to wrappers like this:
+--
+--   > \w a b -> withForeignPtr b (\b' -> w a b')
+--
+--   And types like this:
+--
+--   > (NSObject a, NSObject c) => a -> b -> IO c
+--
+--   to wrapper like this:
+--
+--   > \w a b -> withForeignPtr a (\a' -> w a' b >>= (coerce . newRetainedId))
+--
+--   This wrapper is for instances; the passed in type should not include
+--   instance and method pointers.
+instWrapperExp :: Type -> Q Exp
+instWrapperExp ty = do
+    wn  <- newName "objc_msgSend_wrapper"
+    gmn <- newName "sel_getUid_wrapper"
+    inn <- newName "inst"
+    ipn <- newName "iptr"
+    mn  <- newName "mth"
+    ftns <- funTyNames ty
+    let ps = fmap VarP (wn:inn:gmn:ftns)
+    rhs <- fpWrap (gmn,inn) (wn,ipn,mn) [] ftns ty
+    pure $ LamE ps rhs
+    where fpWrap :: (Name, Name)-- method getter, instance FP
+                 -> (Name, Name, Name) -- wrapper, instance, method
+                 -> [Name] -- used up names
+                 -> [Name] -- fresh names
+                 -> Type   -- fun type
+                 -> Q Exp
+          fpWrap gs fs us [] (AppT (AppT ArrowT x) y) =
+              fail "instWrapperExp: Ran out of names!"
+          fpWrap gs fs us (n:ns) (AppT (AppT ArrowT x) y) = do
+              isNSO <- isNSObject x
+              if isNSO
+              then do
+                  pn <- newName "ptr"
+                  [e| withForeignPtr $(varE n)
+                          (\ $(varP pn) -> $(fpWrap gs fs (pn:us) ns y)) |]
+              else fpWrap gs fs (n:us) ns y
+          fpWrap (gmn,inn) (wn,ipn,mn) us [] y = do
+              isNSO <- isNSObject y
+              if isNSO
+              then [| do $(varP mn) <- $(varE gmn)
+                         withForeignPtr $(varE inn)
+                             (\ $(varP ipn) ->
+                                 $(pure (callWrap (wn,ipn,mn) us))
+                                     >>= (coerce . newRetainedId)) |]
+              else [| do $(varP mn) <- $(varE gmn)
+                         withForeignPtr $(varE inn)
+                             (\ $(varP ipn) ->
+                                 $(pure (callWrap (wn,ipn,mn) us))) |]
+          fpWrap _ _ (_:_) _ _ = fail "instWrapperEnv: Leftover names!"
+          callWrap (wn,ipn,mn) [] = AppE (AppE (VarE wn) (VarE ipn)) (VarE mn)
+          callWrap fn (a:as)      = AppE (callWrap fn as) (VarE a)
+
 
 -- | @objc_msgSend@ function type to objc_msgSend import. For now we just always
 --   use @objc_msgSend@, going to break if we return a struct by value.
@@ -210,10 +253,11 @@ mkSendInstMsg :: String -- ^ ObjC message name.
               -> Q Type -- ^ Desired message type.
               -> Q Exp
 mkSendInstMsg msn mstq = do
-    mst <- mstq
+    mst  <- mstq
     inmt <- funTyToInstMsgTy mst
+    dmt  <- dropInstMsgTy mst
     ocmt <- funTyToObjcMsgTy inmt
-    wexp <- wrapperExp inmt
+    wexp <- instWrapperExp dmt
     ocms <- msgSendDec ocmt
     [| let mth = coerce <$> (getMethod $(pure (LitE (StringL msn))))
        in mth >>= flip ($(pure wexp) $(pure ocms)) |]
