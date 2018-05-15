@@ -221,7 +221,12 @@ instWrapperExp ty = do
 --   use @objc_msgSend@, going to break if we return a struct by value.
 msgSendDec :: Type -> Q Exp
 msgSendDec t = do
-    msn <- newName "objc_msgSend"
+    mwcount <- getQ :: Q (Maybe Int)
+    let wsuf = case mwcount of
+                Nothing -> 0
+                Just wc -> if wc < 0 then 0 else (wc + 1)
+    msn <- newName ("objc_msgSend" ++ show wsuf)
+    putQ wsuf
     let fd = ForeignD (ImportF CCall
                                Safe
                                "objc_msgSend"
