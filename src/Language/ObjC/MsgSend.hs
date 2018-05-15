@@ -138,7 +138,7 @@ classWrapperExp ty = do
              if isNSO
              then do
                  pn  <- newName "ptr"
-                 [e| withForeignPtr $(varE n)
+                 [e| withForeignPtr (coerce $(varE n))
                          (\ $(varP pn) -> $(fpWrap gs fs (pn:us) ns y)) |]
              else fpWrap gs fs (n:us) ns y
           fpWrap (gcn,gmn) (wn,cn,mn) us [] y = do
@@ -197,7 +197,7 @@ instWrapperExp ty = do
               if isNSO
               then do
                   pn <- newName "ptr"
-                  [e| withForeignPtr $(varE n)
+                  [e| withForeignPtr (coerce $(varE n))
                           (\ $(varP pn) -> $(fpWrap gs fs (pn:us) ns y)) |]
               else fpWrap gs fs (n:us) ns y
           fpWrap (gmn,inn) (wn,ipn,mn) us [] y = do
@@ -215,7 +215,6 @@ instWrapperExp ty = do
           fpWrap _ _ (_:_) _ _ = fail "instWrapperEnv: Leftover names!"
           callWrap (wn,ipn,mn) [] = AppE (AppE (VarE wn) (VarE ipn)) (VarE mn)
           callWrap fn (a:as)      = AppE (callWrap fn as) (VarE a)
-
 
 -- | @objc_msgSend@ function type to objc_msgSend import. For now we just always
 --   use @objc_msgSend@, going to break if we return a struct by value.
