@@ -204,12 +204,12 @@ instWrapperExp ty = do
               isNSO <- isReturnedNSObject y
               if isNSO
               then [| do $(varP mn) <- $(varE gmn)
-                         withForeignPtr $(varE inn)
+                         withForeignPtr (coerce $(varE inn))
                              (\ $(varP ipn) ->
                                  $(pure (callWrap (wn,ipn,mn) us))
                                      >>= (coerce . newRetainedId)) |]
               else [| do $(varP mn) <- $(varE gmn)
-                         withForeignPtr $(varE inn)
+                         withForeignPtr (coerce $(varE inn))
                              (\ $(varP ipn) ->
                                  $(pure (callWrap (wn,ipn,mn) us))) |]
           fpWrap _ _ (_:_) _ _ = fail "instWrapperEnv: Leftover names!"
