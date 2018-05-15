@@ -87,44 +87,38 @@ idToFP = castForeignPtr . coerce
 fpToId :: ForeignPtr a -> Id
 fpToId = coerce . castForeignPtr
 
-newtype Class = Class Id
+type Class = Ptr ()
 
-newtype Method = Method Id
+type Method = Ptr ()
 
 getClass :: String -> IO Class
 getClass n = withCString n $ \cn -> do
     cp <- objc_getClass cn
     when (cp == nullPtr) (throwIO ObjCClassDoesNotExist)
-    fcp <- newForeignPtr_ cp
-    pure $ Class (Id fcp)
+    pure cp
 
 getMethod :: String -> IO Method
 getMethod n = withCString n $ \cn -> do
     mp <- sel_getUid cn
     when (mp == nullPtr) (throwIO ObjCMethodDoesNotExist)
-    fmp <- newForeignPtr_ mp
-    pure $ Method (Id fmp)
+    pure mp
 
 sendClassMsg :: Method -> Class -> IO (Ptr ())
-sendClassMsg (Method mid) (Class cid) =
-    withForeignPtr (idToFP mid) $ \mp ->
-    withForeignPtr (idToFP cid) $ \cp ->
-    objc_msgSend cp mp
+sendClassMsg mp cp = objc_msgSend cp mp
 
 sendIdMsg :: Method -> Id -> IO (Ptr ())
-sendIdMsg (Method mid) tid =
-    withForeignPtr (idToFP mid) $ \mp ->
+sendIdMsg mp tid =
     withForeignPtr (idToFP tid) $ \tp ->
     objc_msgSend tp mp
 
 -- | For objects passed to us with a retain count set to 1, e.g. the result of
 --   'new'.
-newId :: Ptr a -> IO (ForeignPtr a)
-newId = newForeignPtr objc_release_addr
+newId :: Ptr a -> IO Id
+newId = coerce $ newForeignPtr objc_release_addr
 
 -- | For objects passed to us with a retain count set to 0, e.g. any function
 --   call that would normally expect to be in an autorelease pool/block.
-newRetainedId :: Ptr a -> IO (ForeignPtr a)
+newRetainedId :: Ptr a -> IO Id
 newRetainedId p = objc_retain p >>= newId
 
 foreign import ccall objc_retain :: Ptr a -> IO (Ptr a)
