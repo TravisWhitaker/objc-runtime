@@ -181,7 +181,7 @@ instWrapperExp ty = do
     ipn <- newName "iptr"
     mn  <- newName "mth"
     ftns <- funTyNames ty
-    let ps = fmap VarP (wn:inn:gmn:ftns)
+    let ps = fmap VarP (wn:gmn:inn:ftns)
     rhs <- fpWrap (gmn,inn) (wn,ipn,mn) [] ftns ty
     pure $ LamE ps rhs
     where fpWrap :: (Name, Name)-- method getter, instance FP
@@ -265,4 +265,4 @@ mkSendInstMsg msn mstq = do
     wexp <- instWrapperExp dmt
     ocms <- msgSendDec ocmt
     [| let mth = coerce <$> (getMethod $(pure (LitE (StringL msn))))
-       in mth >>= flip ($(pure wexp) $(pure ocms)) |]
+       in $(pure wexp) $(pure ocms) mth |]
