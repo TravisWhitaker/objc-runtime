@@ -14,9 +14,10 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Language.ObjC.ObjCException
+  exposed-modules:     Language.ObjC.Class
                        Language.ObjC.MsgSend
                        Language.ObjC.NSObject
+                       Language.ObjC.ObjCException
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.10 && <4.11

@@ -1,6 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Language.ObjC.MsgSend where
+module Language.ObjC.MsgSend (
+    mkSendClassMsg
+  , mkSendInstMsg
+  , Id(..)
+  , Class(..)
+  , Method(..)
+  ) where
 
 import Control.Monad
 
@@ -23,6 +29,7 @@ import Foreign.StablePtr
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 
+import Language.ObjC.Class
 import Language.ObjC.NSObject
 
 -- | Whether or not a type is 'Id' or has an 'NSObject' instance.
@@ -216,16 +223,18 @@ instWrapperExp ty = do
           callWrap (wn,ipn,mn) [] = AppE (AppE (VarE wn) (VarE ipn)) (VarE mn)
           callWrap fn (a:as)      = AppE (callWrap fn as) (VarE a)
 
+newtype MsgSendUniq = MsgSendUniq Int
+
 -- | @objc_msgSend@ function type to objc_msgSend import. For now we just always
 --   use @objc_msgSend@, going to break if we return a struct by value.
 msgSendDec :: Type -> Q Exp
 msgSendDec t = do
-    mwcount <- getQ :: Q (Maybe Int)
+    mwcount <- getQ :: Q (Maybe MsgSendUniq)
     let wsuf = case mwcount of
-                Nothing -> 0
-                Just wc -> if wc < 0 then 0 else (wc + 1)
+                   Nothing               -> 0
+                   Just (MsgSendUniq wc) -> if wc < 0 then 0 else (wc + 1)
     msn <- newName ("objc_msgSend" ++ show wsuf)
-    putQ wsuf
+    putQ (MsgSendUniq wsuf)
     let fd = ForeignD (ImportF CCall
                                Safe
                                "objc_msgSend"

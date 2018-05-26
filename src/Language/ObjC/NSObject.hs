@@ -6,7 +6,10 @@
            , TypeFamilies
            #-}
 
-module Language.ObjC.NSObject where
+module Language.ObjC.NSObject (
+    NSObject(..)
+  , SomeNSObject(..)
+  ) where
 
 import Control.Exception
 
@@ -27,6 +30,7 @@ import Foreign.C.Types
 import Foreign.ForeignPtr
 import Foreign.Ptr
 
+import Language.ObjC.Class
 import Language.ObjC.ObjCException
 
 -- | Class for all Objective-C objects. Only the 'ClassName' type family must be
@@ -39,6 +43,7 @@ class ( Coercible a Id
       ) => NSObject a where
     type ClassName a :: Symbol
 
+    -- | Allocates an object without 'init'.
     alloc :: IO a
     alloc = do
         cls <- getClass (symbolVal (Proxy :: Proxy (ClassName a)))
@@ -50,12 +55,16 @@ class ( Coercible a Id
         -- or not.
         coerce <$> newId res
 
+    -- | Perform type-specific object initialization.
     init :: a -> IO a
     init o = do
         mth <- getMethod "init"
         res <- sendIdMsg mth (coerce o)
         coerce <$> newId res
 
+    -- | Allocate and perform type-specific object initialization. Should be
+    --   equivalent to @'alloc' >>= 'init'@, but types are free to override
+    --   this.
     new :: IO a
     new = do
         cls <- getClass (symbolVal (Proxy :: Proxy (ClassName a)))
@@ -78,57 +87,3 @@ newtype SomeNSObject (n :: Symbol) = SNSO Id
 
 instance KnownSymbol n => NSObject (SomeNSObject n) where
     type ClassName (SomeNSObject n) = n
-
-newtype Id = Id (ForeignPtr ())
-
-idToFP :: Id -> ForeignPtr a
-idToFP = castForeignPtr . coerce
-
-fpToId :: ForeignPtr a -> Id
-fpToId = coerce . castForeignPtr
-
-type Class = Ptr ()
-
-type Method = Ptr ()
-
-getClass :: String -> IO Class
-getClass n = withCString n $ \cn -> do
-    cp <- objc_getClass cn
-    when (cp == nullPtr) (throwIO ObjCClassDoesNotExist)
-    pure cp
-
-getMethod :: String -> IO Method
-getMethod n = withCString n $ \cn -> do
-    mp <- sel_getUid cn
-    when (mp == nullPtr) (throwIO ObjCMethodDoesNotExist)
-    pure mp
-
-sendClassMsg :: Method -> Class -> IO (Ptr ())
-sendClassMsg mp cp = objc_msgSend cp mp
-
-sendIdMsg :: Method -> Id -> IO (Ptr ())
-sendIdMsg mp tid =
-    withForeignPtr (idToFP tid) $ \tp ->
-    objc_msgSend tp mp
-
--- | For objects passed to us with a retain count set to 1, e.g. the result of
---   'new'.
-newId :: Ptr a -> IO Id
-newId = coerce $ newForeignPtr objc_release_addr
-
--- | For objects passed to us with a retain count set to 0, e.g. any function
---   call that would normally expect to be in an autorelease pool/block.
-newRetainedId :: Ptr a -> IO Id
-newRetainedId p = objc_retain p >>= newId
-
-foreign import ccall objc_retain :: Ptr a -> IO (Ptr a)
-
-foreign import ccall objc_release :: Ptr a -> IO ()
-
-foreign import ccall "&objc_release" objc_release_addr :: FunPtr (Ptr a -> IO())
-
-foreign import ccall objc_getClass :: CString -> IO (Ptr a)
-
-foreign import ccall sel_getUid :: CString -> IO (Ptr a)
-
-foreign import ccall objc_msgSend :: Ptr a -> Ptr a -> IO (Ptr a)
