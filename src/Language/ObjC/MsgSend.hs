@@ -117,7 +117,7 @@ funTyNames _                        = pure []
 --
 --   to wrapper like this:
 --
---   > \w a b -> withForeignPtr a (\a' -> w a' b >>= (coerce . newRetainedId))
+--   > \w a b -> withForeignPtr a (\a' -> w a' b >>= (coerce . newId))
 --
 --   This wrapper is for classes; the passed in type should not include class
 --   and method pointers.
@@ -154,7 +154,7 @@ classWrapperExp ty = do
               then [| do $(varP cn) <- $(varE gcn)
                          $(varP mn) <- $(varE gmn)
                          $(pure (callWrap (wn,cn,mn) us))
-                             >>= (coerce . newRetainedId) |]
+                             >>= (coerce . newId) |]
               else [| do $(varP cn) <- $(varE gcn)
                          $(varP mn) <- $(varE gmn)
                          $(pure (callWrap (wn,cn,mn) us)) |]
@@ -176,7 +176,7 @@ classWrapperExp ty = do
 --
 --   to wrapper like this:
 --
---   > \w a b -> withForeignPtr a (\a' -> w a' b >>= (coerce . newRetainedId))
+--   > \w a b -> withForeignPtr a (\a' -> w a' b >>= (coerce . newId))
 --
 --   This wrapper is for instances; the passed in type should not include
 --   instance and method pointers.
@@ -214,7 +214,7 @@ instWrapperExp ty = do
                          withForeignPtr (coerce $(varE inn))
                              (\ $(varP ipn) ->
                                  $(pure (callWrap (wn,ipn,mn) us))
-                                     >>= (coerce . newRetainedId)) |]
+                                     >>= (coerce . newId)) |]
               else [| do $(varP mn) <- $(varE gmn)
                          withForeignPtr (coerce $(varE inn))
                              (\ $(varP ipn) ->
