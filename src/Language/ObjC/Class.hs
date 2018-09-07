@@ -63,13 +63,12 @@ getMethod n = withCString n $ \cn -> do
     when (mp == nullPtr) (throwIO ObjCMethodDoesNotExist)
     pure (Method mp)
 
--- | Call a method with no arguments on a class object. This is only really
---   useful for 'NSObject'.
+-- | Call a method with no arguments on a class object. Only useful for
+--   zero-argument methods.
 sendClassMsg :: Method -> Class -> IO (Ptr ())
 sendClassMsg (Method mp) (Class cp) = objc_msgSend cp mp
 
--- | Call a method with no arguments on an object. This is really only useful
---   for 'NSObject'.
+-- | Call a method with no arguments on an object.
 sendIdMsg :: Method -> Id -> IO (Ptr ())
 sendIdMsg (Method mp) tid =
     withForeignPtr (idToFP tid) $ \tp ->

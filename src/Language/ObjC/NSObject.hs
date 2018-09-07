@@ -9,6 +9,7 @@
 module Language.ObjC.NSObject (
     NSObject(..)
   , SomeNSObject(..)
+  , requireLinkedClass
   ) where
 
 import Control.Exception
@@ -29,6 +30,9 @@ import Foreign.C.String
 import Foreign.C.Types
 import Foreign.ForeignPtr
 import Foreign.Ptr
+
+import Language.Haskell.TH
+import Language.Haskell.TH.Syntax
 
 import Language.ObjC.Class
 import Language.ObjC.ObjCException
@@ -87,3 +91,27 @@ newtype SomeNSObject (n :: Symbol) = SNSO Id
 
 instance KnownSymbol n => NSObject (SomeNSObject n) where
     type ClassName (SomeNSObject n) = n
+
+-- | Require that methods for the provided class are available at link time.
+--   This is handy for writing libraries, and works by generating foreign
+--   imports for the class' Objective C MachO medatada.
+requireLinkedClass :: String -> Q [Dec]
+requireLinkedClass clsName = do
+    ptrTy <- [t| Ptr () |]
+    recName <- newName ("objc_class_rec_" ++ clsName)
+    let recNameSym = show recName
+        recSym = "OBJC_CLASS_$_" ++ clsName
+        cSrc   = unlines [ concat [ "extern void* "
+                                  , recSym
+                                  , ";"
+                                  ]
+                         , concat [ "void* "
+                                  , recNameSym
+                                  , " = &"
+                                  , recSym
+                                  , ";"
+                                  ]
+                         ]
+        fd     = ForeignD $ ImportF CCall Safe recNameSym recName ptrTy
+    addForeignFile LangC cSrc
+    pure [fd]
