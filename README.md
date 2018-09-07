@@ -13,3 +13,9 @@ this:
 ```bash
 $ cabal configure --extra-framework-dirs=/System/Library/Frameworks
 ```
+
+You'll need to start GHCi with something like this:
+
+```bash
+$ cabal repl --ghc-option=-fobject-code
+```
