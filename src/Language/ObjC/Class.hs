@@ -33,7 +33,7 @@ newId :: Ptr a -> IO Id
 newId = coerce $ newForeignPtr objc_release_addr
 
 -- | For objects passed to us with a retain count set to 0, e.g. any function
---   call that would normally expect to be in an autorelease pool/block.
+--   call that would normally expect to be in an autorelease pool.
 newRetainedId :: Ptr a -> IO Id
 newRetainedId p = objc_retain p >>= newId
 
@@ -56,7 +56,7 @@ newtype Method = Method (Ptr ())
 methodPtr :: Method -> Ptr ()
 methodPtr (Method p) = p
 
--- | Look up a method pointer (selector) by name.
+-- | Look up a method pointer (selector) by selector string.
 getMethod :: String -> IO Method
 getMethod n = withCString n $ \cn -> do
     mp <- sel_registerName cn

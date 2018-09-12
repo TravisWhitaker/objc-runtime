@@ -98,7 +98,9 @@ instance KnownSymbol n => NSObject (SomeNSObject n) where
 requireLinkedClass :: String -> Q [Dec]
 requireLinkedClass clsName = do
     ptrTy <- [t| Ptr () |]
-    recName <- newName ("objc_class_rec_" ++ clsName)
+    recName <- newName ("objc_class_rec_" ++
+
+                        clsName)
     let recNameSym = show recName
         recSym = "OBJC_CLASS_$_" ++ clsName
         cSrc   = unlines [ concat [ "extern void* "

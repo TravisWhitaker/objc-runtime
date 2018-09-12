@@ -1,3 +1,5 @@
 **/*.swp
 dist
 .stack-work
+**/TAGS
+**/#*#
