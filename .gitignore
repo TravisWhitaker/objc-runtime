@@ -1,5 +1,8 @@
 **/*.swp
 dist
+dist-newstyle
 .stack-work
 **/TAGS
 **/#*#
+**/.ghc.environment*
+**/cabal.project.local

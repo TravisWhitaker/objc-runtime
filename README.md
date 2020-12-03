@@ -65,7 +65,7 @@ frameworks correctly. Because of the way GHC interacts with the macOS
 linking and loading process, it can be a bit tricky to ensure that
 your programs will be able to find the Objective-C classes and methods
 they need at runtime. See the [GHC, macOS, Linking and
-Loading](#ghc-macos-linking-and-loading] section below.
+Loading](#ghc-macos-linking-and-loading) section below.
 
 `NSString` has a class method called `string`, which returns the empty
 `NSString`. Class methods may be wrapped like so:
@@ -85,7 +85,8 @@ expression. Class method argument and return types must either:
 - If the type of concern is the return value, an `IO` returning a type
   satisfying the above conditions.
 
-Here's `initWithBytes`, an instance method:
+The splices in this library will check that these conditions are satisfied at
+compile time. Here's `initWithBytes`, an instance method:
 
 ```Haskell
 initWithBytes :: NSString -> Ptr () -> CSize -> CULong -> IO NSString
