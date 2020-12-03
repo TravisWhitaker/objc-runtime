@@ -53,18 +53,14 @@ class ( Coercible a Id
         cls <- getClass (symbolVal (Proxy :: Proxy (ClassName a)))
         mth <- getMethod "alloc"
         res <- sendClassMsg mth cls
-        -- Not actually sure what to do here. It's probably bad if we call
-        -- objc_release on an uninitialized object, but there's no way for
-        -- 'init' to tell if the objc_release finalizer has been installed yet
-        -- or not.
-        coerce <$> newId res
+        coerce <$> newReleasedId res
 
     -- | Perform type-specific object initialization.
     init :: a -> IO a
     init o = do
         mth <- getMethod "init"
         res <- sendIdMsg mth (coerce o)
-        coerce <$> newId res
+        coerce <$> newReleasedId res
 
     -- | Allocate and perform type-specific object initialization. Should be
     --   equivalent to @'alloc' >>= 'init'@, but types are free to override
@@ -76,7 +72,10 @@ class ( Coercible a Id
         res <- sendClassMsg mth cls
         -- Assuming that 'new' always has the same retain count behavior as
         -- 'init', i.e. is set to one.
-        coerce <$> newId res
+        coerce <$> newReleasedId res
+
+    touch :: a -> IO ()
+    touch = touchForeignPtr . coerce
 
 -- | A value of this type is an Objective-C object of the named class. Most
 --   Objective-C classes may be represented as a newtype around this type. For
@@ -115,5 +114,5 @@ requireLinkedClass clsName = do
                                   ]
                          ]
         fd     = ForeignD $ ImportF CCall Safe recNameSym recName ptrTy
-    addForeignFile LangC cSrc
+    addForeignSource LangC cSrc
     pure [fd]

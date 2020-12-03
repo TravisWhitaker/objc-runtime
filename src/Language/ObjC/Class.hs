@@ -27,15 +27,23 @@ idToFP = castForeignPtr . coerce
 fpToId :: ForeignPtr a -> Id
 fpToId = coerce . castForeignPtr
 
+-- | For objects we are merely observing. This is scary to use even when an API
+--   states that it safe to do so, since any other thread or OS service could
+--   come along and release this. It's probably safer to just use
+--   'newRetainedId'.
+newSharedId :: Ptr a -> IO Id
+newSharedId = coerce . newForeignPtr_
+
 -- | For objects passed to us with a retain count set to 1, e.g. the result of
---   'new'.
-newId :: Ptr a -> IO Id
-newId = coerce $ newForeignPtr objc_release_addr
+--   'alloc' or 'new'.
+newReleasedId :: Ptr a -> IO Id
+newReleasedId = coerce . newForeignPtr objc_release_addr
 
 -- | For objects passed to us with a retain count set to 0, e.g. any function
---   call that would normally expect to be in an autorelease pool.
+--   call that would normally expect to be in an autorelease pool. This will
+--   retain the object and install a finalizer that releases the object.
 newRetainedId :: Ptr a -> IO Id
-newRetainedId p = objc_retain p >>= newId
+newRetainedId p = objc_retain p >>= newReleasedId
 
 -- | An Objective-C class pointer.
 newtype Class = Class (Ptr ())
